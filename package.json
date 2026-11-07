@@ -1,0 +1,12 @@
+{
+  "name": "foreign-body-gre-simulator",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Static browser-based simulation of GRE phase and relative magnitude around a spherical susceptibility inclusion.",
+  "scripts": {
+    "dev": "node dev-server.mjs",
+    "test": "node tests/simulation.test.mjs"
+  }
+}
+

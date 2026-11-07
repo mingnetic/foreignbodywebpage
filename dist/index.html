@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Browser-based analytic simulation of GRE field, phase and relative magnitude around a spherical foreign body.">
+  <title>Foreign-body GRE simulator</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <div>
+        <div class="eyebrow">MRI susceptibility modelling</div>
+        <h1>Foreign-body GRE simulator</h1>
+        <p>Analytic 3D sphere field with local 3D complex voxel integration. Calculations run entirely in your browser.</p>
+      </div>
+      <div class="header-badge" aria-label="Browser only, no data upload">
+        <span class="status-dot"></span>
+        Browser-only
+      </div>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <aside class="control-panel">
+      <form id="simulation-form">
+        <section class="control-section">
+          <div class="section-heading">
+            <span>01</span>
+            <div><h2>Material</h2><p>Volume susceptibility on one ppm reference scale</p></div>
+          </div>
+          <div class="field-grid two-columns">
+            <label>
+              <span>Medium χ</span>
+              <div class="input-with-unit"><input id="chi-medium" type="number" step="0.01" required><b>ppm</b></div>
+            </label>
+            <label>
+              <span>Particle χ</span>
+              <div class="input-with-unit"><input id="chi-body" type="number" step="0.01" required><b>ppm</b></div>
+            </label>
+          </div>
+          <label>
+            <span>Particle diameter</span>
+            <div class="input-with-unit"><input id="diameter" type="number" min="0.0001" max="1" step="0.001" required><b>mm</b></div>
+          </label>
+        </section>
+
+        <section class="control-section">
+          <div class="section-heading">
+            <span>02</span>
+            <div><h2>GRE acquisition</h2><p>Static-dephasing phase model</p></div>
+          </div>
+          <div class="field-grid two-columns">
+            <label>
+              <span>Field strength</span>
+              <div class="input-with-unit"><input id="b0" type="number" min="0.1" max="14" step="0.1" required><b>T</b></div>
+            </label>
+            <label>
+              <span>Echo time</span>
+              <div class="input-with-unit"><input id="te" type="number" min="0" max="200" step="0.1" required><b>ms</b></div>
+            </label>
+            <label>
+              <span>B₀ direction</span>
+              <select id="b0-direction">
+                <option value="z">z / superior–inferior</option>
+                <option value="y">y / anterior–posterior</option>
+                <option value="x">x / left–right</option>
+              </select>
+            </label>
+            <label>
+              <span>Phase sign</span>
+              <select id="phase-sign">
+                <option value="1">+1</option>
+                <option value="-1">−1</option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section class="control-section">
+          <div class="section-heading">
+            <span>03</span>
+            <div><h2>Sampling</h2><p>Two output planes, fine integration only near the particle</p></div>
+          </div>
+          <div class="field-grid two-columns">
+            <label>
+              <span>FOV</span>
+              <div class="input-with-unit"><input id="fov" type="number" min="1" max="50" step="1" required><b>mm</b></div>
+            </label>
+            <label>
+              <span>MRI voxel</span>
+              <div class="input-with-unit"><input id="voxel" type="number" min="0.005" max="0.5" step="0.005" required><b>mm</b></div>
+            </label>
+            <label>
+              <span>Local grid</span>
+              <div class="input-with-unit"><input id="sim-spacing" type="number" min="0.0001" max="0.05" step="0.0005" required><b>mm</b></div>
+            </label>
+            <label>
+              <span>Far-field tolerance</span>
+              <div class="input-with-unit"><input id="field-tolerance" type="number" min="0.0001" max="0.1" step="0.001" required><b>rad</b></div>
+            </label>
+          </div>
+        </section>
+
+        <section class="control-section compact-section">
+          <div class="section-heading">
+            <span>04</span>
+            <div><h2>Display</h2><p>Does not change the simulated FOV</p></div>
+          </div>
+          <div class="field-grid two-columns">
+            <label>
+              <span>Plot half-width</span>
+              <div class="input-with-unit"><input id="display-width" type="number" min="0.02" max="25" step="0.1" required><b>mm</b></div>
+            </label>
+            <label>
+              <span>Low-signal threshold</span>
+              <div class="input-with-unit"><input id="signal-threshold" type="number" min="0" max="0.99" step="0.01" required><b>relative</b></div>
+            </label>
+          </div>
+          <label class="check-row">
+            <input id="mask-low-signal" type="checkbox">
+            <span><strong>Mark unreliable phase</strong><small>Show voxels below the threshold in magenta</small></span>
+          </label>
+        </section>
+
+        <div id="error-box" class="message error-message" role="alert" hidden></div>
+        <div id="warning-box" class="message warning-message" role="status" hidden></div>
+
+        <div class="action-row">
+          <button id="run-button" class="primary-button" type="submit"><span>Run simulation</span><b>→</b></button>
+          <button id="reset-button" class="secondary-button" type="button">Reset</button>
+        </div>
+
+        <div id="progress-panel" class="progress-panel" hidden>
+          <div class="progress-track"><div id="progress-bar"></div></div>
+          <span id="progress-text">Preparing simulation…</span>
+        </div>
+      </form>
+    </aside>
+
+    <section class="results-panel">
+      <div id="results-empty" class="empty-state">
+        <div class="empty-orbit"><span></span></div>
+        <h2>Preparing the default simulation</h2>
+        <p>The computation runs locally and normally completes in a few seconds.</p>
+      </div>
+
+      <div id="results-content" hidden>
+        <section class="results-header">
+          <div>
+            <div class="eyebrow">Simulation output</div>
+            <h2>Central MRI planes</h2>
+            <p id="view-description">3D complex-averaged GRE phase at the selected TE.</p>
+          </div>
+          <div class="download-row">
+            <button id="download-image" class="secondary-button" type="button">Download PNG</button>
+            <button id="download-metadata" class="secondary-button" type="button">Metadata JSON</button>
+          </div>
+        </section>
+
+        <div class="view-tabs" role="tablist" aria-label="Output quantity">
+          <button data-view="field" role="tab" aria-selected="false">Field</button>
+          <button data-view="phase" class="active" role="tab" aria-selected="true">Phase</button>
+          <button data-view="magnitude" role="tab" aria-selected="false">Magnitude</button>
+        </div>
+
+        <div class="plot-grid">
+          <article class="plot-card">
+            <div class="plot-title"><strong>Axial</strong><span>x–y plane</span></div>
+            <canvas id="axial-canvas" aria-label="Axial simulation heatmap"></canvas>
+          </article>
+          <article class="plot-card">
+            <div class="plot-title"><strong>Coronal</strong><span>x–z plane</span></div>
+            <canvas id="coronal-canvas" aria-label="Coronal simulation heatmap"></canvas>
+          </article>
+        </div>
+
+        <div class="legend-block">
+          <div id="legend-title">Wrapped GRE phase (rad)</div>
+          <div id="legend-gradient" class="legend-gradient"></div>
+          <div class="legend-labels"><span id="legend-min">−π</span><span id="legend-mid">0</span><span id="legend-max">+π</span></div>
+        </div>
+
+        <section class="diagnostics-section">
+          <div class="section-heading horizontal-heading">
+            <span>05</span>
+            <div><h2>Diagnostics</h2><p>Resolution, adaptive integration and signal behaviour</p></div>
+          </div>
+          <div id="diagnostic-grid" class="diagnostic-grid"></div>
+        </section>
+
+        <section class="model-note">
+          <h3>Model scope</h3>
+          <p>The particle is an isotropic, linearly magnetisable sphere with no MR-visible signal. Magnitude reflects particle partial volume and static intravoxel dephasing only. The model excludes intrinsic T₂*, diffusion, noise, chemical shift, RF and slice-profile effects, k-space point-spread functions, readout distortion and vendor phase processing.</p>
+          <p><strong>This simulator cannot determine MRI safety.</strong> Ferromagnetic, remanently magnetised, saturated or irregular particles require a different electromagnetic model.</p>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Analytic 3D spherical dipole field • Local 3D complex voxel integration • No data leaves this browser</p>
+  </footer>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
+
